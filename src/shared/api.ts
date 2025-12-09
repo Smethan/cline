@@ -86,6 +86,10 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	// Anthropic OAuth credentials (for Claude Pro/Max subscription)
+	anthropicOAuthAccessToken?: string
+	anthropicOAuthRefreshToken?: string
+	anthropicOAuthExpiresAt?: number
 }
 
 export interface ApiHandlerOptions {
@@ -95,6 +99,10 @@ export interface ApiHandlerOptions {
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
+	anthropicAuthMethod?: string // Authentication method for Anthropic: "api_key" (default) or "oauth"
+	anthropicOAuthUserEmail?: string // User email from Anthropic OAuth profile
+	claudeCliLoggedIn?: boolean // Whether user is logged in to Claude CLI
+	claudeCliAccountEmail?: string // Email from Claude CLI account
 	openRouterProviderSorting?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
@@ -105,6 +113,7 @@ export interface ApiHandlerOptions {
 	awsProfile?: string
 	awsBedrockEndpoint?: string
 	claudeCodePath?: string
+	cwd?: string // Working directory for Claude Code SDK
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string

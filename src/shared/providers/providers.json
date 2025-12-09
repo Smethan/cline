@@ -50,7 +50,7 @@
 		},
 		{
 			"value": "claude-code",
-			"label": "Claude Code"
+			"label": "Claude Code (Login Required)"
 		},
 		{
 			"value": "sapaicore",

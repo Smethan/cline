@@ -206,6 +206,15 @@ export interface Settings {
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
 
+	// Anthropic OAuth settings (for Claude Pro/Max subscription)
+	anthropicAuthMethod: string | undefined // "api_key" (default) or "oauth"
+	anthropicOAuthExpiresAt: number | undefined
+	anthropicOAuthUserEmail: string | undefined
+
+	// Claude CLI login status (from claude login session in Keychain)
+	claudeCliLoggedIn: boolean | undefined
+	claudeCliAccountEmail: string | undefined
+
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
 	openTelemetryMetricsExporter: string | undefined
@@ -267,6 +276,9 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	// Anthropic OAuth credentials (for Claude Pro/Max subscription)
+	anthropicOAuthAccessToken: string | undefined
+	anthropicOAuthRefreshToken: string | undefined
 }
 
 export interface LocalState {
