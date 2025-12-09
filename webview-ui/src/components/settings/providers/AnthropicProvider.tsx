@@ -34,6 +34,7 @@ interface AnthropicProviderProps {
 
 /**
  * The Anthropic provider configuration component
+ * Uses API key authentication only.
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
@@ -49,6 +50,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 	return (
 		<div>
+			{/* API Key field */}
 			<ApiKeyField
 				initialValue={apiConfiguration?.apiKey || ""}
 				onChange={(value) => handleFieldChange("apiKey", value)}
