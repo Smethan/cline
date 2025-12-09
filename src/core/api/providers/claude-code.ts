@@ -1,19 +1,55 @@
-import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
-import { runClaudeCode } from "@/integrations/claude-code/run"
+import { query } from "@anthropic-ai/claude-agent-sdk"
 import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { type ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
-import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { type ApiStream, ApiStreamTextChunk, ApiStreamThinkingChunk, ApiStreamUsageChunk } from "../transform/stream"
+
+// All SDK tools to disable - Cline handles tools via XML in system prompt
+const DISABLED_TOOLS = [
+	"Task",
+	"Bash",
+	"BashOutput",
+	"KillShell",
+	"Glob",
+	"Grep",
+	"LS",
+	"Read",
+	"Edit",
+	"MultiEdit",
+	"Write",
+	"NotebookRead",
+	"NotebookEdit",
+	"WebFetch",
+	"WebSearch",
+	"TodoRead",
+	"TodoWrite",
+	"AgentOutputTool",
+	"AskUserQuestion",
+	"SlashCommand",
+	"Skill",
+	"EnterPlanMode",
+	"ExitPlanMode",
+]
 
 interface ClaudeCodeHandlerOptions extends CommonApiHandlerOptions {
+	cwd: string
 	claudeCodePath?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
 }
 
+/**
+ * ClaudeCodeHandler - Direct integration with Claude Agent SDK
+ *
+ * Uses the SDK's query() function directly instead of spawning a subprocess.
+ * All SDK tools are disabled - Cline handles tools via XML in the system prompt.
+ * Requires Claude CLI login via `claude login` to authenticate.
+ */
 export class ClaudeCodeHandler implements ApiHandler {
 	private options: ClaudeCodeHandlerOptions
+	private sessionId: string | null = null
+	private aborted = false
 
 	constructor(options: ClaudeCodeHandlerOptions) {
 		this.options = options
@@ -25,19 +61,25 @@ export class ClaudeCodeHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		// Filter out image blocks since Claude Code doesn't support them
-		const filteredMessages = filterMessagesForClaudeCode(messages)
+		this.aborted = false
 
-		const claudeProcess = runClaudeCode({
-			systemPrompt,
-			messages: filteredMessages,
-			path: this.options.claudeCodePath,
-			modelId: this.getModel().id,
-			thinkingBudgetTokens: this.options.thinkingBudgetTokens,
+		const response = query({
+			prompt: this.formatPrompt(messages),
+			options: {
+				model: this.getModel().id,
+				cwd: this.options.cwd,
+				systemPrompt,
+				disallowedTools: DISABLED_TOOLS,
+				permissionMode: "bypassPermissions",
+				settingSources: [],
+				maxThinkingTokens: this.options.thinkingBudgetTokens || undefined,
+				// Custom CLI path if provided
+				pathToClaudeCodeExecutable: this.options.claudeCodePath || undefined,
+				// Resume session if we have one
+				...(this.sessionId && { resume: this.sessionId }),
+			},
 		})
 
-		// Usage is included with assistant messages,
-		// but cost is included in the result chunk
 		const usage: ApiStreamUsageChunk = {
 			type: "usage",
 			inputTokens: 0,
@@ -46,115 +88,147 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
-		let isPaidUsage = true
-
-		for await (const chunk of claudeProcess) {
-			if (typeof chunk === "string") {
-				yield {
-					type: "text",
-					text: chunk,
+		try {
+			for await (const message of response) {
+				// Check for abort
+				if (this.aborted) {
+					break
 				}
 
-				continue
-			}
-
-			if (chunk.type === "system" && chunk.subtype === "init") {
-				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
-				isPaidUsage = chunk.apiKeySource !== "none"
-				continue
-			}
-
-			if (chunk.type === "assistant" && "message" in chunk) {
-				const message = chunk.message
-
-				if (message.stop_reason !== null) {
-					const content = "text" in message.content[0] ? message.content[0] : undefined
-
-					const isError = content && content.text.startsWith(`API Error`)
-					if (isError) {
-						// Error messages are formatted as: `API Error: <<status code>> <<json>>`
-						const errorMessageStart = content.text.indexOf("{")
-						const errorMessage = content.text.slice(errorMessageStart)
-
-						const error = this.attemptParse(errorMessage)
-						if (!error) {
-							throw new Error(content.text)
+				switch (message.type) {
+					case "system":
+						if (message.subtype === "init" && message.session_id) {
+							this.sessionId = message.session_id
 						}
+						break
 
-						if (error.error.message.includes("Invalid model name")) {
-							throw new Error(
-								content.text +
-									`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
-							)
+					case "assistant":
+						// Check for errors on assistant message
+						if (message.error) {
+							throw new Error(`Claude Agent SDK error: ${message.error}`)
 						}
+						// Process content blocks from assistant messages
+						for (const chunk of this.extractContent(message)) {
+							yield chunk
+						}
+						break
 
-						throw new Error(errorMessage)
-					}
+					case "stream_event":
+						// Handle streaming deltas for real-time output
+						for (const chunk of this.extractStreamEvent(message)) {
+							yield chunk
+						}
+						break
+
+					case "result":
+						// Query completed - check for errors
+						if (message.subtype !== "success") {
+							const errorResult = message as { errors: string[]; subtype: string }
+							throw new Error(`Claude Agent SDK error: ${errorResult.errors?.join(", ") || errorResult.subtype}`)
+						}
+						// Extract usage data
+						if (message.usage) {
+							usage.inputTokens = message.usage.input_tokens || 0
+							usage.outputTokens = message.usage.output_tokens || 0
+							usage.cacheReadTokens = message.usage.cache_read_input_tokens || 0
+							usage.cacheWriteTokens = message.usage.cache_creation_input_tokens || 0
+						}
+						break
 				}
-
-				for (const content of message.content) {
-					switch (content.type) {
-						case "text":
-							yield {
-								type: "text",
-								text: content.text,
-							}
-							break
-						case "thinking":
-							yield {
-								type: "reasoning",
-								reasoning: content.thinking || "",
-							}
-							break
-						case "redacted_thinking":
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
-							}
-							break
-						case "tool_use":
-							// Yield tool_use blocks to the streaming pipeline for proper tool execution
-							yield {
-								type: "tool_calls",
-								tool_call: {
-									call_id: content.id,
-									function: {
-										id: content.id,
-										name: content.name,
-										arguments: content.input,
-									},
-								},
-							}
-							break
-					}
-				}
-
-				// According to Anthropic's API documentation:
-				// https://docs.anthropic.com/en/api/messages#usage-object
-				// The `input_tokens` field already includes both `cache_read_input_tokens` and `cache_creation_input_tokens`.
-				// Therefore, we should not add cache tokens to the input_tokens count again, as this would result in double-counting.
-				usage.inputTokens = message.usage?.input_tokens ?? 0
-				usage.outputTokens = message.usage?.output_tokens ?? 0
-				usage.cacheReadTokens = message.usage?.cache_read_input_tokens ?? 0
-				usage.cacheWriteTokens = message.usage?.cache_creation_input_tokens ?? 0
-
-				continue
 			}
 
-			if (chunk.type === "result" && "result" in chunk) {
-				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0
+			// Yield final usage
+			yield usage
+		} catch (error) {
+			this.cleanup()
+			throw error
+		}
+	}
 
-				yield usage
+	/**
+	 * Extract content chunks from an assistant message
+	 */
+	private *extractContent(message: any): Generator<ApiStreamTextChunk | ApiStreamThinkingChunk> {
+		const content = message.message?.content || message.content
+		if (typeof content === "string") {
+			yield { type: "text" as const, text: content }
+		} else if (Array.isArray(content)) {
+			for (const block of content) {
+				if (block.type === "text" && block.text) {
+					yield { type: "text" as const, text: block.text }
+				} else if (block.type === "thinking" && block.thinking) {
+					yield { type: "reasoning" as const, reasoning: block.thinking }
+				}
 			}
 		}
 	}
 
-	private attemptParse(str: string) {
-		try {
-			return JSON.parse(str)
-		} catch (_err) {
-			return null
+	/**
+	 * Extract content from stream events for real-time streaming
+	 */
+	private *extractStreamEvent(message: any): Generator<ApiStreamTextChunk | ApiStreamThinkingChunk> {
+		const event = message.event
+		if (!event) {
+			return
 		}
+
+		// Handle content block deltas
+		if (event.type === "content_block_delta" && event.delta) {
+			const delta = event.delta
+			if (delta.type === "text_delta" && delta.text) {
+				yield { type: "text" as const, text: delta.text }
+			} else if (delta.type === "thinking_delta" && delta.thinking) {
+				yield { type: "reasoning" as const, reasoning: delta.thinking }
+			}
+		}
+	}
+
+	/**
+	 * Format Cline messages into a prompt string for the SDK
+	 * The SDK expects a string prompt - conversation history is handled via session resume
+	 */
+	private formatPrompt(messages: ClineStorageMessage[]): string {
+		// Get the last user message as the prompt
+		// Previous context is maintained via session resume
+		const lastMsg = messages[messages.length - 1]
+		if (!lastMsg) {
+			return ""
+		}
+
+		if (typeof lastMsg.content === "string") {
+			return lastMsg.content
+		}
+
+		if (Array.isArray(lastMsg.content)) {
+			const textParts: string[] = []
+			for (const block of lastMsg.content) {
+				if (block.type === "text") {
+					textParts.push(block.text)
+				} else if (block.type === "tool_result") {
+					// Include tool results in the prompt
+					const content =
+						typeof block.content === "string"
+							? block.content
+							: Array.isArray(block.content)
+								? block.content.map((c: any) => (c.type === "text" ? c.text : "")).join("\n")
+								: ""
+					textParts.push(`[Tool Result for ${block.tool_use_id}]:\n${content}`)
+				}
+			}
+			return textParts.join("\n\n")
+		}
+
+		return ""
+	}
+
+	private cleanup() {
+		this.aborted = false
+	}
+
+	abort() {
+		this.aborted = true
+		// Breaking the async iterator loop will stop the query
+		// Session can be resumed later if needed
 	}
 
 	getModel() {
