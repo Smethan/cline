@@ -54,6 +54,7 @@ import type { StreamingResponseHandler } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
+import { checkClaudeCliLogin } from "./state/checkClaudeCliLogin"
 import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
@@ -176,6 +177,9 @@ export class Controller {
 
 		// Check CLI installation status once on startup
 		checkCliInstallation(this)
+
+		// Check Claude CLI login status once on startup
+		checkClaudeCliLogin(this)
 	}
 
 	/*
