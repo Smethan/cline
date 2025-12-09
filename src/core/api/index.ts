@@ -78,6 +78,7 @@ function createHandlerForProvider(
 ): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
+			// API key authentication only
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.apiKey,
@@ -348,8 +349,10 @@ function createHandlerForProvider(
 				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
+			// Uses Claude Agent SDK with CLI login authentication
 			return new ClaudeCodeHandler({
 				onRetryAttempt: options.onRetryAttempt,
+				cwd: options.cwd || process.cwd(),
 				claudeCodePath: options.claudeCodePath,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
