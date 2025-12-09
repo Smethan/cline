@@ -644,7 +644,7 @@ export class StateManager {
 		} = apiConfiguration
 
 		// Batch update global state keys
-		this.setGlobalStateBatch({
+		const globalStateUpdates: Partial<GlobalStateAndSettings> = {
 			// Plan mode configuration updates
 			planModeApiProvider,
 			planModeApiModelId,
@@ -767,10 +767,12 @@ export class StateManager {
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
-		})
+		}
+
+		this.setGlobalStateBatch(globalStateUpdates)
 
 		// Batch update secrets
-		this.setSecretsBatch({
+		const secretsUpdates: Partial<Secrets> = {
 			apiKey,
 			openRouterApiKey,
 			clineAccountId,
@@ -809,7 +811,9 @@ export class StateManager {
 			hicapApiKey,
 			aihubmixApiKey,
 			nousResearchApiKey,
-		})
+		}
+
+		this.setSecretsBatch(secretsUpdates)
 	}
 
 	/**
@@ -1186,6 +1190,8 @@ export class StateManager {
 			sapAiCoreUseOrchestrationMode:
 				this.taskStateCache["sapAiCoreUseOrchestrationMode"] || this.globalStateCache["sapAiCoreUseOrchestrationMode"],
 			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
+			claudeCliLoggedIn: this.globalStateCache["claudeCliLoggedIn"],
+			claudeCliAccountEmail: this.globalStateCache["claudeCliAccountEmail"],
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],

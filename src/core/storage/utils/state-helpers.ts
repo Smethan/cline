@@ -56,6 +56,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		anthropicOAuthAccessToken,
+		anthropicOAuthRefreshToken,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -100,6 +102,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("anthropicOAuthAccessToken") as Promise<Secrets["anthropicOAuthAccessToken"]>,
+		context.secrets.get("anthropicOAuthRefreshToken") as Promise<Secrets["anthropicOAuthRefreshToken"]>,
 	])
 
 	return {
@@ -146,6 +150,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		anthropicOAuthAccessToken,
+		anthropicOAuthRefreshToken,
 	}
 }
 
@@ -199,6 +205,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const lmStudioBaseUrl = context.globalState.get<GlobalStateAndSettings["lmStudioBaseUrl"]>("lmStudioBaseUrl")
 		const lmStudioMaxTokens = context.globalState.get<GlobalStateAndSettings["lmStudioMaxTokens"]>("lmStudioMaxTokens")
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
+		const anthropicAuthMethod = context.globalState.get<GlobalStateAndSettings["anthropicAuthMethod"]>("anthropicAuthMethod")
+		const anthropicOAuthExpiresAt =
+			context.globalState.get<GlobalStateAndSettings["anthropicOAuthExpiresAt"]>("anthropicOAuthExpiresAt")
+		const anthropicOAuthUserEmail =
+			context.globalState.get<GlobalStateAndSettings["anthropicOAuthUserEmail"]>("anthropicOAuthUserEmail")
+		const claudeCliLoggedIn = context.globalState.get<GlobalStateAndSettings["claudeCliLoggedIn"]>("claudeCliLoggedIn")
+		const claudeCliAccountEmail =
+			context.globalState.get<GlobalStateAndSettings["claudeCliAccountEmail"]>("claudeCliAccountEmail")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
 		const openRouterProviderSorting =
@@ -539,6 +553,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lmStudioBaseUrl,
 			lmStudioMaxTokens,
 			anthropicBaseUrl,
+			anthropicAuthMethod,
+			anthropicOAuthExpiresAt,
+			anthropicOAuthUserEmail,
+			claudeCliLoggedIn,
+			claudeCliAccountEmail,
 			geminiBaseUrl,
 			qwenApiLine,
 			moonshotApiLine,
@@ -768,6 +787,8 @@ export async function resetGlobalState(controller: Controller) {
 		"aihubmixApiKey",
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",
+		"anthropicOAuthAccessToken",
+		"anthropicOAuthRefreshToken",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
