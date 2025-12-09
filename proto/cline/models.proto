@@ -181,6 +181,10 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  // Anthropic OAuth credentials (for Claude Pro/Max subscription)
+  optional string anthropic_oauth_access_token = 40;
+  optional string anthropic_oauth_refresh_token = 41;
+  optional int64 anthropic_oauth_expires_at = 42;
 }
 
 // API configuration options (non-secret settings)
@@ -229,6 +233,13 @@ message ModelsApiOptions {
   optional string minimax_api_line = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  // Anthropic authentication method: "api_key" (default) or "oauth"
+  optional string anthropic_auth_method = 44;
+  // User email from Anthropic OAuth profile
+  optional string anthropic_oauth_user_email = 45;
+  // Claude CLI login status (from claude login session in Keychain)
+  optional bool claude_cli_logged_in = 46;
+  optional string claude_cli_account_email = 47;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -567,6 +578,14 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  // Anthropic OAuth credentials (for Claude Pro/Max subscription)
+  optional string anthropic_oauth_access_token = 86;
+  optional string anthropic_oauth_refresh_token = 87;
+  optional int64 anthropic_oauth_expires_at = 88;
+  // Anthropic authentication method: "api_key" (default) or "oauth"
+  optional string anthropic_auth_method = 89;
+  // User email from Anthropic OAuth profile
+  optional string anthropic_oauth_user_email = 90;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
