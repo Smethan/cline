@@ -1,6 +1,7 @@
 import { claudeCodeModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
@@ -20,6 +21,7 @@ interface ClaudeCodeProviderProps {
 
 /**
  * The Claude Code provider configuration component
+ * Requires Claude CLI login via `claude login` to authenticate.
  */
 export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
@@ -28,8 +30,49 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
+	// Claude CLI login status (from claude login session)
+	const claudeCliLoggedIn = apiConfiguration?.claudeCliLoggedIn
+	const claudeCliAccountEmail = apiConfiguration?.claudeCliAccountEmail
+
 	return (
 		<div>
+			{/* Claude CLI login status box */}
+			<div className="mb-3 p-3 rounded border border-input-border bg-input-background">
+				{claudeCliLoggedIn ? (
+					<div>
+						<div className="flex items-center gap-2 mb-2">
+							<span style={{ color: "var(--vscode-terminal-ansiGreen)" }}>✓</span>
+							<span>
+								Claude CLI logged in
+								{claudeCliAccountEmail && ` as ${claudeCliAccountEmail}`}
+							</span>
+						</div>
+						<p className="text-sm" style={{ color: VSC_DESCRIPTION_FOREGROUND }}>
+							Using your Claude Pro/Max subscription via Claude CLI session.
+						</p>
+					</div>
+				) : (
+					<div>
+						<div className="flex items-center gap-2 mb-2">
+							<span style={{ color: "var(--vscode-terminal-ansiYellow)" }}>⚠</span>
+							<span>Claude CLI not logged in</span>
+						</div>
+						<p className="text-sm" style={{ color: VSC_DESCRIPTION_FOREGROUND }}>
+							Run{" "}
+							<code
+								style={{
+									backgroundColor: "var(--vscode-textCodeBlock-background)",
+									padding: "2px 4px",
+									borderRadius: "3px",
+								}}>
+								claude login
+							</code>{" "}
+							in your terminal to authenticate with your Claude Pro/Max subscription.
+						</p>
+					</div>
+				)}
+			</div>
+
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
 				onChange={(value) => handleFieldChange("claudeCodePath", value)}
@@ -45,7 +88,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Path to the Claude Code CLI.
+				Path to the Claude Code CLI. Leave empty to use the default.
 			</p>
 
 			{showModelOptions && (
